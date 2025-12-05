@@ -1,0 +1,2201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>Modern Music Player</title>
+<base target="_top" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
+<style>
+:root{
+--bg-color:#121212;--card-bg:rgba(26,26,26,.65);--sidebar-bg:rgba(0,0,0,.2);
+--text-color:#e0e0e0;--text-secondary:#b3b3b3;--highlight-color:#FFD700;
+--accent-color:#FFC107;--border-color:rgba(255,255,255,.1);
+}
+*,:before,:after{box-sizing:border-box;margin:0;padding:0}
+body{
+font-family:'Helvetica Neue','Arial',sans-serif;background-color:var(--bg-color);
+background-size:cover;background-position:center;background-attachment:fixed;
+color:var(--text-color);display:flex;justify-content:center;align-items:center;
+min-height:100vh;padding:20px;transition:background-image 1s ease-in-out;
+}
+body:before{
+content:'';position:fixed;inset:0;background:inherit;filter:blur(50px);
+z-index:-1;transform:scale(1.1);
+}
+.app-container{
+width:100%;max-width:1400px;height:85vh;background-color:var(--card-bg);
+backdrop-filter:blur(25px) saturate(180%);-webkit-backdrop-filter:blur(25px) saturate(180%);
+border-radius:12px;border:1px solid var(--border-color);box-shadow:0 8px 32px rgba(0,0,0,.37);
+display:grid;
+grid-template-columns:280px 1fr 340px;
+gap:20px;padding:20px;overflow:hidden;
+}
+.sidebar-panel,.queue-panel{
+background-color:var(--sidebar-bg);border-radius:8px;padding:15px;display:flex;
+flex-direction:column;gap:15px;overflow-y:auto;
+}
+.main-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.logo{font-size:1.5em;font-weight:bold;color:var(--highlight-color);margin-bottom:20px}
+h1,h2{color:var(--text-color);font-weight:600;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid var(--border-color)}
+
+.album-art-container{
+width:100%;max-width:320px;
+aspect-ratio:1/1; 
+margin-bottom:15px; 
+border-radius:12px;
+position: relative; 
+box-shadow:0 10px 30px rgba(0,0,0,.5);
+perspective:1000px;
+transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.album-art-container.video-mode {
+  max-width: 100%; 
+  width: 100%; 
+  aspect-ratio: 16 / 9; 
+}
+
+#videoOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border-radius: 12px;
+  z-index: 10; 
+  display: none; 
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+#videoOverlay.visible {
+  opacity: 1;
+}
+
+#mainVideoPlayer {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+#closeVideoBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+#closeVideoBtn:hover {
+  background: rgba(255, 0, 0, 0.7);
+}
+
+.flip-card{width:100%;height:100%;position:relative}
+.flip-inner{position:relative;width:100%;height:100%;transition:transform .5s ease;transform-style:preserve-3d; border-radius: 12px;}
+.flip-inner.flipped{transform:rotateY(180deg)}
+.flip-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden; border-radius: 12px; overflow: hidden;}
+.flip-front{background:#222}
+#albumArt{width:100%;height:100%;object-fit:cover;transition:transform .4s ease;display:block}
+#albumArt.playing{transform:scale(1.05)}
+.flip-back{transform:rotateY(180deg);background:rgba(0,0,0,.35);display:flex;flex-direction:column}
+.lyrics-header{
+display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,.25);
+border-bottom:1px solid var(--border-color);padding:8px 10px
+}
+.lyrics-title{font-size:.95em;color:var(--text-secondary)}
+.lyrics-actions{display:flex;gap:8px}
+.lyrics-btn{
+background:none;border:1px solid var(--border-color);color:var(--text-secondary);
+padding:4px 8px;border-radius:6px;cursor:pointer;font-size:.85em;transition:all .15s ease
+}
+.lyrics-btn:hover{color:#fff;border-color:#777}
+.lyrics-btn.primary{border-color:var(--highlight-color);color:var(--highlight-color)}
+.lyrics-scroll{padding:10px;overflow-y:auto;flex:1}
+#lyricsEditor, #lyricsEditorMobile {
+width:100%;height:100%;min-height:100%;resize:none;background:transparent;color:var(--text-color);
+border:none;outline:none;font:400 14px/1.6 "Helvetica Neue",Arial,sans-serif;white-space:pre-wrap
+}
+#currentTrackTitle{font-size:1.8em;font-weight:bold;margin-bottom:8px}
+#currentTrackArtist{font-size:1.1em;color:var(--text-secondary);margin-bottom:10px;cursor:pointer}
+
+#mvToggleContainer {
+  height: 30px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+#mvToggleBtn {
+  background: transparent;
+  border: 1px solid var(--highlight-color);
+  color: var(--highlight-color);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85em;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+#mvToggleBtn:hover {
+  background: var(--highlight-color);
+  color: #121212;
+}
+
+#audioPlayer{display:none}
+.player-controls{width:100%;max-width:450px}
+#progressBar{height:100%;width:0%;background-color:var(--highlight-color);border-radius:5px}
+.progress-bar-container{width:100%;height:5px;background-color:#444;border-radius:5px;cursor:pointer;margin-bottom:15px}
+.time-display{display:flex;justify-content:space-between;font-size:.8em;color:var(--text-secondary);margin-top:5px}
+.controls{display:flex;justify-content:center;align-items:center;gap:28px;margin-bottom:20px}
+.control-btn,.mode-btn,.fav-btn{
+background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:2.8em;transition:all.2s ease;
+}
+.icon{fill:currentColor;width:1em;height:1em;vertical-align:middle}
+.control-btn:hover{color:#fff;transform:scale(1.1)}
+.play-pause-btn{font-size:4em;color:#fff}
+.mode-btn,.fav-btn{width:2.8em;height:2.8em;display:flex;justify-content:center;align-items:center;font-size:2.2em}
+.mode-btn.active{color:var(--highlight-color)}
+.fav-btn.active{color:gold}
+.playlist-list,.library-list{list-style:none;overflow-y:auto;flex-grow:1}
+.queue-item-container{
+  position:relative;
+}
+.library-item{
+display:flex;align-items:center;gap:12px;padding:10px;border-radius:5px;cursor:pointer;
+transition:transform .2s ease-in-out;position:relative;z-index:2
+}
+.library-item.dragging{transition:none}
+.playlist-item{
+display:flex;align-items:center;gap:12px;padding:10px;border-radius:5px;cursor:pointer;
+transition:background-color .2s;position:relative;
+}
+.playlist-item:hover,.library-item:hover{background-color:rgba(255,255,255,.1)}
+.playlist-item.active{background-color:var(--highlight-color);color:#121212;font-weight:bold}
+.library-item.playing{background-color:var(--highlight-color)}
+.library-item.playing .item-info .title,
+.library-item.playing .item-info .artist,
+.library-item.playing .item-info .album,
+.library-item.playing .favorite-btn,
+.library-item.playing .options-menu-btn {color:#121212} 
+.item-art{width:40px;height:40px;border-radius:4px;object-fit:cover}
+.item-info{flex-grow:1;text-align:left;
+min-width: 0;}
+.item-info .title{
+  font-weight:500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-info .artist{font-size:.9em;color:var(--text-secondary);cursor:pointer}
+.item-info .album{font-size:.8em;color:var(--text-secondary)}
+.playlist-item-heading{font-weight:bold;color:var(--text-color);margin-top:10px}
+.action-btn{background:none;border:none;cursor:pointer;font-size:1.2em}
+.favorite-btn.active{color:gold}
+.favorite-btn:not(.active){color:var(--text-secondary)}
+.file-upload-container{margin-top:auto;padding-top:15px;border-top:1px solid var(--border-color)}
+.custom-file-upload{
+display:block;background-color:var(--highlight-color);color:#121212;padding:10px;border-radius:5px;
+text-align:center;cursor:pointer;font-weight:bold;
+}
+#fileInput{display:none}
+.playlist-creation{display:flex;gap:5px}
+#newPlaylistInput{
+flex-grow:1;background-color:rgba(255,255,255,.1);border:1px solid var(--border-color);
+border-radius:5px;color:var(--text-color);padding:8px
+}
+#addPlaylistBtn{
+background-color:var(--highlight-color);border:none;color:#121212;font-size:1.2em;font-weight:bold;
+border-radius:5px;width:35px;height:35px;cursor:pointer;
+}
+.modal{
+position:fixed;z-index:100;left:0;top:0;width:100%;height:100%;overflow:auto;
+background-color:rgba(0,0,0,.8);display:none;justify-content:center;align-items:center;
+backdrop-filter:blur(10px);
+}
+.modal-content{
+background-color:var(--card-bg);padding:20px;border-radius:12px;max-width:600px;width:90%;
+color:var(--text-color);text-align:left;box-shadow:0 5px 15px rgba(0,0,0,.5);position:relative;
+max-height:80vh;overflow-y:auto;
+}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;border-bottom:1px solid var(--border-color);padding-bottom:10px}
+.modal-header h2{margin:0;border-bottom:none}
+.close-btn{color:var(--text-secondary);font-size:2em;font-weight:bold;cursor:pointer;background:none;border:none}
+.close-btn:hover{color:#fff}
+.artist-info-details{line-height:1.6}
+.artist-image{max-width:100%;border-radius:8px;margin-bottom:15px}
+.loading-message{text-align:center;padding:20px}
+
+#mobileConditionalContent {
+  display: none;
+}
+
+.search-container {
+  margin-bottom: 15px;
+  position: relative;
+}
+#searchInput {
+  width: 100%;
+  background-color: rgba(255,255,255,0.1);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 10px 10px 35px;
+  color: var(--text-color);
+  font-size: 0.95em;
+  transition: border-color 0.2s;
+}
+#searchInput:focus {
+  outline: none;
+  border-color: var(--highlight-color);
+}
+.search-icon-overlay {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  fill: var(--text-secondary);
+  pointer-events: none;
+}
+
+.library-item.artist-result {
+  background-color: rgba(255, 215, 0, 0.1);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+.library-item.artist-result .item-art {
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+@media (max-width:1024px){
+.app-container{
+  grid-template-columns:240px 1fr;
+  height:90vh
+}
+.queue-panel{display:none}
+}
+
+@media (max-width:768px){
+body{padding:0}
+.app-container{
+  display: flex;
+  flex-direction: column;
+  height:100vh;
+  border-radius:0;
+padding:15px
+}
+.sidebar-panel{display:none}
+
+.queue-panel {
+  display: none; 
+}
+.queue-panel.mobile-visible {
+  display: flex;
+  flex-direction: column;
+  order: 1;
+  flex-grow: 1;
+  height: 100%;
+  gap: 0;
+}
+.main-panel {
+  order: 1; 
+  flex-grow: 1; 
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-height: 0;
+}
+.main-panel.mobile-hidden {
+  display: none; 
+}
+
+.player-controls {
+  margin-top: auto;
+  padding-top: 10px; 
+  width: 100%; 
+  flex-shrink: 0; 
+}
+
+.queue-panel .queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+.queue-panel .queue-header h2 {
+  margin-bottom: 0;
+  border-bottom: none;
+  font-size: 1.1em; 
+}
+.queue-panel h2:not(.queue-header h2) {
+  display: none; 
+}
+#toggleMainBtn {
+  font-size: 0.9em;
+  padding: 5px 10px;
+}
+#mobileNowPlaying {
+  display: none; 
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+#toggleQueueBtn {
+  display: flex; 
+}
+.album-art-container{
+  max-width: 280px; 
+  width: 75%; 
+  margin-top: 5vh; 
+  flex-shrink: 0; 
+}
+.album-art-container.video-mode {
+  width: 95%;
+  max-width: 100%;
+  margin-top: 2vh;
+}
+
+#now-playing-info {
+  flex-shrink: 0; 
+}
+#currentTrackTitle{font-size:1.3em}
+
+.album-art-container .flip-back {
+    display: none !important;
+}
+  
+#mobileConditionalContent {
+    display: flex; 
+    flex-grow: 1; 
+    width: 100%;
+    min-height: 0; 
+    flex-direction: column;
+}
+  
+#mobileInlineLyricsContainer, #mobileInlineQueueContainer {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    max-width: 450px;
+    margin-left: auto;
+    margin-right: auto;
+}
+  
+#mobileInlineLyricsContainer .lyrics-scroll {
+    padding: 0;
+    height: 100%;
+    display: flex; 
+    flex-direction: column;
+}
+
+#lyricsDisplayMobile {
+    height: 100%;
+    padding: 10px 0;
+    font-size: 1.2em; 
+    line-height: 2.1; 
+}
+#lyricsDisplayMobile .lyrics-line {
+    opacity: 0.4; 
+    font-weight: 600;
+}
+#lyricsDisplayMobile .lyrics-line.active {
+    color: var(--highlight-color);
+    opacity: 1;
+    font-weight: 800; 
+    transform: scale(1.05); 
+}
+#mobileInlineQueueContainer {
+    padding-top: 10px;
+}
+
+}
+
+#lyricsDisplay, #lyricsDisplayMobile {
+width: 100%;
+height: 100%;
+font: 400 16px/1.8 "Helvetica Neue", Arial, sans-serif;
+white-space: pre-wrap;
+text-align: center;
+padding: 20px 0;
+color: var(--text-color);
+overflow-y: auto;
+scroll-behavior: smooth; 
+}
+.lyrics-line {
+transition: all 0.2s ease-in-out;
+opacity: 0.7;
+padding: 0 5px;
+cursor: pointer;
+}
+.lyrics-line.active {
+color: var(--highlight-color);
+opacity: 1;
+font-weight: bold;
+transform: scale(1.05);
+}
+.dragover {
+border: 2px dashed var(--highlight-color);
+background-color: rgba(255, 255, 255, 0.05);
+border-radius: 8px;
+}
+
+@keyframes rotateOnce {
+  from { transform: rotate(0deg);}
+  to { transform: rotate(360deg); }
+}
+.rotate-on-change {
+  animation: rotateOnce 0.7s ease-out;
+}
+
+.options-menu-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.5em;
+  line-height: 1;
+  cursor: pointer;
+  padding: 5px;
+  margin-left: auto; 
+  margin-right: 8px;
+}
+.options-menu-btn:hover {
+  color: #fff;
+}
+
+.context-menu {
+  display: none;
+  position: absolute;
+  right: 15px;
+  top: 50px; 
+  background-color: #333;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.5);
+  z-index: 10;
+  min-width: 160px;
+}
+.context-menu-item {
+  padding: 10px 15px;
+color: var(--text-color);
+  cursor: pointer;
+  font-size: 0.9em;
+  display: block;
+}
+.context-menu-item:hover {
+  background-color: var(--highlight-color);
+  color: #121212;
+}
+
+.queue-header {
+  display: none; 
+}
+#toggleQueueBtn {
+  display: none; 
+}
+
+</style>
+</head>
+<body>
+<div class="app-container">
+<div class="sidebar-panel">
+<div class="logo">Music Player</div>
+<h2> ライブラリ </h2>
+<ul id="playlistList" class="playlist-list">
+<li class="playlist-item active" data-playlist-id="all"> 全曲 </li>
+<li class="playlist-item" data-playlist-id="favorites"> お気に入り </li>
+</ul>
+<div class="playlist-creation">
+<input type="text" id="newPlaylistInput" placeholder= "新規プレイリスト..."  />
+<button id="addPlaylistBtn">+</button>
+</div>
+<div class="file-upload-container">
+<label for="fileInput" class="custom-file-upload"> ♪♪ 音楽/動画を追加 </label>
+<input type="file" id="fileInput" accept="audio/*, video/mp4, image/*" webkitdirectory multiple />
+</div>
+</div>
+<div class="main-panel">
+<div class="album-art-container" id="albumArtContainer">
+  <div id="videoOverlay">
+    <button id="closeVideoBtn" title="動画を閉じる">×</button>
+    <video id="mainVideoPlayer" controls></video>
+  </div>
+  
+  <div class="flip-card" id="mainFlipCard">
+    <div class="flip-inner" id="flipInner">
+      <div class="flip-face flip-front">
+        <img id="albumArt" alt="Album Art"
+        src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'><rect width='100%' height='100%' fill='%23222'/><text x='50%' y='60%' font-size='150' text-anchor='middle' fill='%23555' font-family='sans-serif'>♫</text></svg>" />
+      </div>
+      <div class="flip-face flip-back">
+        <div class="lyrics-header">
+          <div class="lyrics-title" id="lyricsHeaderTitle"> 歌詞 </div>
+          <div class="lyrics-actions" id="lyricsActions">
+            <button class="lyrics-btn" id="lyricsClearBtn"> 全削除 </button>
+            <button class="lyrics-btn primary" id="lyricsSaveBtn"> 保存 </button>
+          </div>
+        </div>
+        <div class="lyrics-scroll" id="lyricsScrollContainer">
+          <textarea id="lyricsEditor" placeholder= "ここに歌詞を入力/貼り付け" ></textarea>
+          <div id="lyricsDisplay" style="display: none;"></div>
+          <div id="artistInfoDisplay" style="display: none; padding: 15px; line-height: 1.6;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="now-playing-info">
+  <div id="mvToggleContainer">
+    <button id="mvToggleBtn">
+      <span>🎥</span> Music Videoに切り替える
+    </button>
+  </div>
+  
+  <div id="currentTrackTitle"> 曲が選択されていません </div>
+  <div id="currentTrackArtist"></div>
+</div>
+
+<div id="mobileConditionalContent">
+  <div id="mobileInlineLyricsContainer" style="display: none;">
+     <div class="lyrics-scroll">
+         <textarea id="lyricsEditorMobile" placeholder= "ここに歌詞を入力/貼り付け" ></textarea>
+         <div id="lyricsDisplayMobile" style="display: none;"></div>
+         <!-- モバイル用アーティスト情報 -->
+         <div id="artistInfoDisplayMobile" style="display: none; padding: 15px; line-height: 1.6;"></div>
+     </div>
+  </div>
+  <div id="mobileInlineQueueContainer" style="display: none;">
+      <ul id="mobileInlineQueueList" class="library-list">
+          </ul>
+  </div>
+</div>
+<div class="player-controls">
+<div class="progress-bar-container" id="progressContainer">
+<div id="progressBar"></div>
+</div>
+<div class="time-display">
+<span id="currentTime">0:00</span>
+<span id="totalDuration">0:00</span>
+</div>
+<div class="controls">
+<button id="modeBtn" class="mode-btn" title= "再生モード" >
+<svg class="icon" viewBox="0 0 24 24"><path d="M5 16h10v-2H7v-2h8V8H7V6h10V4H5v12zm14-4V6h-2v6h2zm-2 4v2h2v-2h-2z"/></svg>
+</button>
+<button id="prevBtn" class="control-btn" title= "前の曲" >
+<svg class="icon" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+</button>
+<button id="playPauseBtn" class="control-btn play-pause-btn" 
+title= "再生/一時停止" >
+<svg 
+id="playIcon" class="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+<svg id="pauseIcon" class="icon" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+</button>
+<button id="nextBtn" class="control-btn" title= "次の曲" >
+<svg class="icon" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+</button>
+<button id="favBtn" class="fav-btn" title= "お気に入り" ></button>
+<button id="toggleQueueBtn" class="mode-btn" title="再生リスト">
+  <svg class="icon" viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zm0-8h14V7H7v2z"/></svg>
+</button>
+</div>
+</div>
+<audio id="audioPlayer"></audio>
+</div>
+<div class="queue-panel">
+<div class="queue-header">
+  <h2 id="mobileQueueTitle">再生リスト</h2>
+  <button id="toggleMainBtn" class="lyrics-btn">閉じる</button>
+</div>
+<div id="mobileNowPlaying">
+  </div>
+  
+<div class="search-container">
+  <svg class="search-icon-overlay" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+  <input type="text" id="searchInput" placeholder="曲、アルバム、アーティストを検索..." />
+</div>
+
+<h2 id="queueTitle">再生リスト</h2>
+<ul id="queueList" class="library-list"></ul>
+</div>
+</div>
+<div id="artistModal" class="modal">
+<div class="modal-content">
+<div class="modal-header">
+<h2 id="modalArtistName"></h2>
+<button class="close-btn" aria-label= "閉じる" >&times;</button>
+</div>
+<div id="modalContentBody" 
+class="artist-info-details">
+<p class="loading-message"> 情報を読み込み中... </p>
+</div>
+</div>
+</div>
+<script>
+const DEFAULT_ART = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'><rect width='100%' height='100%' fill='%23222'/><text x='50%' y='60%' font-size='150' text-anchor='middle' fill='%23555' font-family='sans-serif'>♫</text></svg>";
+
+const PLAY_MODES = ['sequential', 'shuffle', 'repeat-all', 'repeat-one'];
+const WIKIPEDIA_API_BASE = 'https://ja.wikipedia.org/w/api.php';
+
+const getModeIcon = (mode) => {
+const icons = {
+'sequential': '<svg class="icon" viewBox="0 0 24 24"><path d="M5 16h10v-2H7v-2h8V8H7V6h10V4H5v12zm14-4V6h-2v6h2zm-2 4v2h2v-2h-2z"/></svg>',
+'shuffle': '<svg class="icon" viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17L10.59 9.17zM14.5 4l-4.17 4.17 1.41 1.41L16 5.41V10h2V4h-3.5zm-4.78 12.24l-1.41-1.41L4 18.59V14H2v6h6V14l1.58 1.58L12 14.5l-4.24 4.24zM20 18.59l-5.17-5.17L13.22 14.5l1.41 1.41L17.5 20H20v2h2v-6h-2v2.59z"/></svg>',
+'repeat-all': '<svg class="icon" viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>',
+'repeat-one': '<svg class="icon" viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-1h-2v-2h2v2z"/></svg>',
+};
+return icons[mode];
+};
+const getFavIcon = (isFav) => (isFav ? '★' : '☆');
+
+function formatTime(seconds) {
+const minutes = Math.floor(seconds / 60);
+const remainingSeconds = Math.floor(seconds % 60);
+return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+function parseLRC(lrcText) {
+if (!lrcText) return [];
+const lines = lrcText.split('\n');
+const result = [];
+const timeRegex = /\[(\d{2}):(\d{2})[.:](\d{2,3})\](.*)/;
+for (const line of lines) {
+const match = line.match(timeRegex);
+if (match) {
+const minutes = parseInt(match[1], 10);
+const seconds = parseInt(match[2], 10);
+const milliseconds = parseInt(match[3].padEnd(3, '0'), 10);
+const time = minutes * 60 + seconds + milliseconds / 1000;
+const text = match[4].trim();
+if (text) {
+result.push({ time, text });
+}
+}
+}
+return result.sort((a, b) => a.time - b.time);
+}
+
+function shuffleArray(array) {
+for (let i = array.length - 1; i > 0; i--) {
+const j = Math.floor(Math.random() * (i + 1));
+[array[i], array[j]] = [array[j], array[i]];
+}
+}
+
+// =============================
+// State
+// =============================
+let allTracks = [];
+let currentQueue = []; // 画面に表示するリスト（アーティスト、曲含む）
+let activeQueue = [];  // 実際に再生する曲のリスト
+let currentTrackIndex = -1;
+let currentPlayMode = 'sequential';
+let activePlaylistId = 'all';
+let currentLrcLineIndex = -1;
+let playlists = [];
+let playNextQueue = []; 
+let artistImages = new Map();
+
+let videoFiles = new Map(); 
+let isVideoMode = false; 
+
+let isManuallyScrolling = false;
+let manualScrollTimer = null;
+let ignoreProgrammaticScroll = false;
+
+// =============================
+// DOM references
+// =============================
+const fileInput = document.getElementById('fileInput');
+const audioPlayer = document.getElementById('audioPlayer');
+const queueListElement = document.getElementById('queueList');
+const playlistListElement = document.getElementById('playlistList');
+const currentTrackTitle = document.getElementById('currentTrackTitle');
+const currentTrackArtist = document.getElementById('currentTrackArtist');
+const albumArt = document.getElementById('albumArt');
+const playPauseBtn = document.getElementById('playPauseBtn');
+const playIcon = document.getElementById('playIcon');
+const pauseIcon = document.getElementById('pauseIcon');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const modeBtn = document.getElementById('modeBtn');
+const favBtn = document.getElementById('favBtn');
+
+const newPlaylistInput = document.getElementById('newPlaylistInput');
+const addPlaylistBtn = document.getElementById('addPlaylistBtn');
+const progressContainer = document.getElementById('progressContainer');
+const progressBar = document.getElementById('progressBar');
+const currentTimeEl = document.getElementById('currentTime');
+const totalDurationEl = document.getElementById('totalDuration');
+
+const albumArtContainer = document.getElementById('albumArtContainer');
+const flipInner = document.getElementById('flipInner');
+const lyricsEditor = document.getElementById('lyricsEditor');
+const lyricsDisplay = document.getElementById('lyricsDisplay');
+const lyricsEditorMobile = document.getElementById('lyricsEditorMobile');
+const lyricsDisplayMobile = document.getElementById('lyricsDisplayMobile');
+const lyricsSaveBtn = document.getElementById('lyricsSaveBtn');
+const lyricsClearBtn = document.getElementById('lyricsClearBtn');
+const lyricsActions = document.querySelector('.lyrics-actions');
+const lyricsHeaderTitle = document.getElementById('lyricsHeaderTitle');
+const artistInfoDisplay = document.getElementById('artistInfoDisplay');
+const artistInfoDisplayMobile = document.getElementById('artistInfoDisplayMobile');
+
+const artistModal = document.getElementById('artistModal');
+const modalArtistName = document.getElementById('modalArtistName');
+const modalContentBody = document.getElementById('modalContentBody');
+const closeModalBtn = document.querySelector('#artistModal .close-btn');
+
+const mainPanel = document.querySelector('.main-panel');
+const queuePanel = document.querySelector('.queue-panel');
+const toggleQueueBtn = document.getElementById('toggleQueueBtn');
+const toggleMainBtn = document.getElementById('toggleMainBtn');
+const mobileNowPlaying = document.getElementById('mobileNowPlaying');
+
+const mobileInlineLyricsContainer = document.getElementById('mobileInlineLyricsContainer');
+const mobileInlineQueueContainer = document.getElementById('mobileInlineQueueContainer');
+const mobileInlineQueueList = document.getElementById('mobileInlineQueueList');
+
+const videoOverlay = document.getElementById('videoOverlay');
+const mainVideoPlayer = document.getElementById('mainVideoPlayer');
+const closeVideoBtn = document.getElementById('closeVideoBtn');
+const mvToggleBtn = document.getElementById('mvToggleBtn');
+
+const searchInput = document.getElementById('searchInput');
+
+function updateQueueTitles(title) {
+  const queueTitleEl = document.getElementById('queueTitle');
+  const mobileQueueTitleEl = document.getElementById('mobileQueueTitle');
+  if (queueTitleEl) queueTitleEl.textContent = title;
+  if (mobileQueueTitleEl) mobileQueueTitleEl.textContent = title;
+}
+
+// =============================
+// File handling
+// =============================
+
+function getFilenameStem(pathLike) {
+    const p = (pathLike || '').replace(/\\/g, '/');
+    const parts = p.split('/');
+    const filename = parts.pop() || '';
+    const base = filename.replace(/\.[^/.]+$/, '');
+    return base.toLowerCase();
+}
+
+function normalizeBaseKey(pathLike){
+  const p = (pathLike || '').replace(/\\/g,'/');
+  const parts = p.split('/');
+  const filename = parts.pop() || '';
+  const base = filename.replace(/\.[^/.]+$/,'');
+  return [...parts, base].join('/').toLowerCase(); 
+}
+
+async function processFiles(files) {
+const newFiles = [];
+const existingFiles = new Set(allTracks.map(t => t.name));
+const pendingLyrics = new Map();
+
+for (const file of files) {
+  if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)) {
+    const url = URL.createObjectURL(file);
+    const baseName = file.name.replace(/\.[^/.]+$/, '').toLowerCase();
+    artistImages.set(baseName, url);
+    continue; 
+  }
+
+const path = file.webkitRelativePath || file.name;
+const nameLower = file.name.toLowerCase();
+const isLyrics = nameLower.endsWith('.txt') || nameLower.endsWith('.lrc');
+if (isLyrics) {
+const key = normalizeBaseKey(path); 
+const text = await file.text().catch(() => '');
+if (text) {
+pendingLyrics.set(key, text);
+const existing = findTrackByBaseKey(key);
+if (existing) {
+existing.lyrics = text;
+existing.parsedLyrics = parseLRC(text);
+}
+}
+}
+if (file.type === 'video/mp4' || nameLower.endsWith('.mp4')) {
+  const videoUrl = URL.createObjectURL(file);
+  const simpleKey = getFilenameStem(file.name); 
+  videoFiles.set(simpleKey, videoUrl);
+  continue; 
+}
+}
+
+for (const file of files) {
+  const path = file.webkitRelativePath || file.name;
+const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+const isLyrics = file.name.toLowerCase().endsWith('.txt') ||
+file.name.toLowerCase().endsWith('.lrc');
+const isVideo = file.type === 'video/mp4' || file.name.toLowerCase().endsWith('.mp4');
+
+if (isImage || isLyrics || isVideo) continue;
+
+if (!file.type.startsWith('audio/')) continue;
+const trackName = path;
+if (existingFiles.has(trackName)) continue;
+
+const audioData = await file.arrayBuffer();
+const url = URL.createObjectURL(new Blob([audioData], { type: 'audio/mpeg' }));
+const track = {
+name: trackName,
+title: file.name.replace(/\.[^/.]+$/,''),
+artist: 'Unknown Artist',
+album: 'Unknown Album',
+trackNumber: null,
+art: null,
+isFavorite: false,
+lyrics: '',
+audioData: audioData,
+url: url, 
+};
+try{
+const tags = await new Promise((res,rej)=>jsmediatags.read(file,{onSuccess:res,onError:rej}));
+if(tags && tags.tags){
+const t = tags.tags;
+track.title = t.title || track.title;
+track.artist = t.artist || 'Unknown Artist';
+track.album = t.album || 'Unknown Album';
+if(t.track){
+const num = String(t.track).split('/')[0].trim();
+const n = parseInt(num,10);
+track.trackNumber = isFinite(n) ? n : null;
+}
+if(t.picture){
+const {data,format} = t.picture;
+let base64String = '';
+for(let i=0;i<data.length;i++) base64String += String.fromCharCode(data[i]);
+track.art = `data:${format};base64,${btoa(base64String)}`;
+}
+const lyricCandidate = t.lyrics || t.unsynchronised_lyrics ||
+t.USLT || t.uslt || '';
+if(typeof lyricCandidate === 'string'){
+track.lyrics = lyricCandidate;
+}else if(lyricCandidate && typeof lyricCandidate === 'object'){
+track.lyrics = lyricCandidate.text || lyricCandidate.data || '';
+}
+}
+}catch(e){
+console.warn('Failed to read tags:', e);
+}
+
+const key = normalizeBaseKey(trackName);
+if(!track.lyrics && pendingLyrics.has(key)){
+track.lyrics = pendingLyrics.get(key) || '';
+}
+
+track.parsedLyrics = parseLRC(track.lyrics);
+allTracks.push(track);
+newFiles.push(track);
+}
+
+if (newFiles.length > 0) {
+generateDynamicPlaylists();
+filterAndDisplayQueue();
+alert(  `ファイル読み込み完了: 音楽 ${newFiles.length}件 / 動画 ${videoFiles.size}件 / 画像 ${artistImages.size}件`  );
+}
+}
+
+fileInput.addEventListener('change', async (event)=>{
+const files = Array.from(event.target.files);
+files.sort((a,b)=> (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name));
+await processFiles(files);
+});
+
+// ▼▼▼ 修正: ドラッグ＆ドロップ拡張 ▼▼▼
+// ディレクトリを再帰的に読み込む関数を追加
+async function traverseFileTree(entry) {
+  if (entry.isFile) {
+    return new Promise(resolve => entry.file(resolve));
+  } else if (entry.isDirectory) {
+    const dirReader = entry.createReader();
+    const entries = await new Promise((resolve, reject) => {
+      let allEntries = [];
+      function read() {
+        dirReader.readEntries(results => {
+          if (results.length) {
+            allEntries = allEntries.concat(results);
+            read();
+          } else {
+            resolve(allEntries);
+          }
+        }, reject);
+      }
+      read();
+    });
+    const results = await Promise.all(entries.map(traverseFileTree));
+    return results.flat();
+  }
+  return [];
+}
+
+const dropZone = document.getElementById('albumArtContainer');
+dropZone.addEventListener('dragover', (e) => { 
+  e.preventDefault(); 
+  e.stopPropagation(); 
+  e.dataTransfer.dropEffect = 'copy'; 
+  // ファイルまたはフォルダが含まれているかチェック（簡易）
+  if (e.dataTransfer.items && e.dataTransfer.items.length > 0) { 
+    dropZone.classList.add('dragover'); 
+  } 
+});
+dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
+dropZone.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  dropZone.classList.remove('dragover');
+
+  const items = e.dataTransfer.items;
+  if (!items) return;
+
+  const promises = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    // webkitGetAsEntry を使用してファイル/ディレクトリを判定
+    if (item.kind === 'file') {
+      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if (entry) {
+        promises.push(traverseFileTree(entry));
+      } else {
+        // フォールバック
+        const file = item.getAsFile();
+        if (file) promises.push(Promise.resolve([file]));
+      }
+    }
+  }
+
+  const results = await Promise.all(promises);
+  const files = results.flat();
+  
+  if (files.length > 0) {
+    await processFiles(files);
+  }
+});
+// ▲▲▲ 修正 ▲▲▲
+
+function findTrackByBaseKey(baseKey){
+return allTracks.find(t => normalizeBaseKey(t.name) === baseKey);
+}
+
+// =============================
+// Playlists
+// =============================
+function generateDynamicPlaylists() {
+const artists = new Set();
+const albums = new Set();
+allTracks.forEach(t => {
+if (t.artist && t.artist !== 'Unknown Artist') artists.add(t.artist);
+if (t.album && t.album !== 'Unknown Album') albums.add(t.album);
+});
+playlistListElement.innerHTML = '';
+
+const all = document.createElement('li');
+all.className = 'playlist-item';
+all.dataset.playlistId = 'all';
+all.textContent =  '全曲'  ;
+playlistListElement.appendChild(all);
+
+const fav = document.createElement('li');
+fav.className = 'playlist-item';
+fav.dataset.playlistId = 'favorites';
+fav.textContent =  'お気に入り'  ;
+playlistListElement.appendChild(fav);
+
+if (artists.size > 0) {
+const heading = document.createElement('li');
+heading.className = 'playlist-item-heading';
+heading.textContent =  'アーティスト'  ;
+playlistListElement.appendChild(heading);
+Array.from(artists).sort().forEach(artist => {
+const li = document.createElement('li');
+li.className = 'playlist-item';
+li.dataset.playlistId = `artist-${artist}`;
+li.textContent = artist;
+playlistListElement.appendChild(li);
+});
+}
+
+if (albums.size > 0) {
+const heading = document.createElement('li');
+heading.className = 'playlist-item-heading';
+heading.textContent =  'アルバム'  ;
+playlistListElement.appendChild(heading);
+Array.from(albums).sort().forEach(album => {
+const li = document.createElement('li');
+li.className = 'playlist-item';
+li.dataset.playlistId = `album-${album}`;
+li.textContent = album;
+playlistListElement.appendChild(li);
+});
+}
+if(playlists.length > 0) {
+const heading = document.createElement('li');
+heading.className = 'playlist-item-heading';
+heading.textContent =  'カスタム'  ;
+playlistListElement.appendChild(heading);
+playlists.forEach(p => {
+const li = document.createElement('li');
+li.className = 'playlist-item';
+li.dataset.playlistId = p.id;
+li.textContent = p.name;
+playlistListElement.appendChild(li);
+});
+}
+
+const currentActive = playlistListElement.querySelector(`[data-playlist-id="${activePlaylistId}"]`);
+if(currentActive) currentActive.classList.add('active');
+}
+
+addPlaylistBtn.addEventListener('click', ()=>{
+const name = newPlaylistInput.value.trim();
+if(name){
+const newId = `custom-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+playlists.push({id: newId, name: name, trackNames: []});
+newPlaylistInput.value = '';
+generateDynamicPlaylists();
+alert(  `プレイリスト「  ${name}  」を作成しました。`  );
+}
+});
+playlistListElement.addEventListener('click', (event)=>{
+const item = event.target.closest('.playlist-item');
+if(item){
+document.querySelectorAll('.playlist-item').forEach(el=>el.classList.remove('active'));
+item.classList.add('active');
+activePlaylistId = item.dataset.playlistId;
+updateQueueTitles(item.textContent); 
+searchInput.value = ''; 
+filterAndDisplayQueue();
+}
+});
+
+function filterAndDisplayQueue(){
+if(activePlaylistId === 'all'){
+currentQueue = [...allTracks];
+}else if(activePlaylistId === 'favorites'){
+currentQueue = allTracks.filter(t=>t.isFavorite);
+}
+else if(activePlaylistId.startsWith('artist-')){
+const artistName = activePlaylistId.substring('artist-'.length);
+currentQueue = allTracks.filter(t=>t.artist === artistName);
+}else if(activePlaylistId.startsWith('album-')){
+const albumName = activePlaylistId.substring('album-'.length);
+currentQueue = allTracks.filter(t=>t.album === albumName);
+}
+else{
+const playlist = playlists.find(p => p.id === activePlaylistId);
+if(playlist){
+currentQueue = allTracks.filter(t => playlist.trackNames.includes(t.name));
+} else {
+currentQueue = [];
+}
+}
+
+// アーティストアイテムは通常リストには含めない（検索時のみ）
+// currentQueueはTrackオブジェクトの配列
+currentQueue.sort((a,b)=>{
+const artistCompare = (a.artist||'').localeCompare(b.artist||'');
+if(artistCompare !== 0) return artistCompare;
+const albumCompare = (a.album||'').localeCompare(b.album||'');
+if(albumCompare !== 0) return albumCompare;
+const A = a.trackNumber ?? Infinity;
+const B = b.trackNumber ?? Infinity;
+return A - B;
+});
+
+// アクティブな再生キューも更新
+activeQueue = [...currentQueue];
+updateQueueUI();
+}
+
+// ▼▼▼ 修正: 検索機能ロジック (アーティスト結果対応) ▼▼▼
+searchInput.addEventListener('input', (e) => {
+  const query = e.target.value.toLowerCase().trim();
+  
+  if (query === '') {
+    filterAndDisplayQueue();
+    updateQueueTitles(document.querySelector(`.playlist-item[data-playlist-id="${activePlaylistId}"]`)?.textContent || '全曲');
+    return;
+  }
+
+  // 1. 曲の検索
+  const matchedTracks = allTracks.filter(track => {
+    const title = (track.title || '').toLowerCase();
+    const artist = (track.artist || '').toLowerCase();
+    const album = (track.album || '').toLowerCase();
+    return title.includes(query) || artist.includes(query) || album.includes(query);
+  });
+
+  // 2. アーティストの検索 (重複排除)
+  const matchedArtists = new Set();
+  allTracks.forEach(track => {
+    const artist = track.artist;
+    if (artist && artist !== 'Unknown Artist' && artist.toLowerCase().includes(query)) {
+      matchedArtists.add(artist);
+    }
+  });
+
+  // 表示用キューの構築: [アーティスト項目] + [曲項目]
+  // ※ currentQueueはこの時点でTrackオブジェクトとArtistオブジェクトの混成になる
+  const artistItems = Array.from(matchedArtists).map(name => ({
+    type: 'artist',
+    name: name,
+    // 画像があれば取得
+    image: artistImages.get(name.toLowerCase()) || null
+  }));
+
+  currentQueue = [...artistItems, ...matchedTracks];
+
+  // UI更新
+  updateQueueUI(true); // true = 検索モード
+  updateQueueTitles(`検索結果: "${e.target.value}"`);
+  
+  document.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('active'));
+});
+// ▲▲▲ 修正 ▲▲▲
+
+// =============================
+// Player logic
+// =============================
+function playTrack(index){
+const mobileNP = document.getElementById('mobileNowPlaying');
+
+if (currentTrackIndex !== index && isVideoMode) {
+  closeVideoMode();
+}
+
+// 再生対象がない場合
+if(activeQueue.length === 0){
+audioPlayer.src = '';
+currentTrackTitle.textContent =  '曲が選択されていません'  ;
+currentTrackArtist.textContent = '';
+albumArt.src = DEFAULT_ART;
+updateBodyBackground(null);
+updateFavButton();
+setLyricsUIFromTrack(null);
+// プレイリストUIは更新しない (検索結果などを維持するため)
+if (mobileNP) mobileNP.style.display = 'none';
+if (window.innerWidth <= 768) {
+  if (mobileInlineLyricsContainer) mobileInlineLyricsContainer.style.display = 'none';
+  if (mobileInlineQueueContainer) mobileInlineQueueContainer.style.display = 'block';
+}
+mvToggleBtn.style.display = 'none';
+return;
+}
+
+let nextIndex = index;
+if(nextIndex < 0) nextIndex = activeQueue.length - 1;
+if(nextIndex >= activeQueue.length) nextIndex = 0;
+currentTrackIndex = nextIndex;
+
+const track = activeQueue[currentTrackIndex];
+// Trackオブジェクトかどうか確認 (検索結果のアーティストItemなどを弾く)
+if (!track || !track.url) return;
+
+audioPlayer.src = track.url;
+audioPlayer.play().catch(e=>console.error('Playback failed:', e));
+currentTrackTitle.textContent = track.title || '';
+currentTrackArtist.textContent = track.artist || 'Unknown Artist';
+albumArt.src = track.art || DEFAULT_ART;
+
+// 裏面がアーティスト情報なら歌詞に戻す
+const artistInfo = document.getElementById('artistInfoDisplay');
+const artistInfoMobile = document.getElementById('artistInfoDisplayMobile');
+const lyricsDisplay = document.getElementById('lyricsDisplay');
+const lyricsEditor = document.getElementById('lyricsEditor');
+const lyricsHeader = document.getElementById('lyricsHeaderTitle');
+const lyricsActions = document.getElementById('lyricsActions');
+
+if (artistInfo.style.display !== 'none') {
+  artistInfo.style.display = 'none';
+  artistInfoMobile.style.display = 'none';
+  lyricsHeader.textContent = '歌詞';
+  // 歌詞があるかどうかで表示切替
+  setLyricsUIFromTrack(track);
+}
+// ▲▲▲ 修正 ▲▲▲
+
+if(flipInner.classList.contains('flipped')) {
+  toggleFlip(false);
+}
+albumArt.classList.remove('rotate-on-change');
+void albumArt.offsetWidth;
+albumArt.classList.add('rotate-on-change');
+albumArt.addEventListener('animationend', () => {
+  albumArt.classList.remove('rotate-on-change');
+}, { once: true });
+
+if (mobileNP) {
+  mobileNP.style.display = 'flex';
+  mobileNP.className = 'library-item playing';
+  mobileNP.innerHTML = `
+    <img src="${track.art || DEFAULT_ART}" class="item-art">
+    <div class="item-info">
+      <div class="title">${track.title}</div>
+      <div class="artist">${track.artist}</div>
+    </div>`;
+  mobileNP.onclick = () => {
+    if (toggleMainBtn) toggleMainBtn.click();
+  };
+}
+
+updateBodyBackground(track.art);
+updateFavButton();
+setLyricsUIFromTrack(track);
+updateQueueUI(); // 再生中表示の更新
+updateMediaSession();
+
+const simpleKey = getFilenameStem(track.name); 
+if (videoFiles.has(simpleKey)) {
+  mvToggleBtn.style.display = 'flex';
+  mvToggleBtn.dataset.videoUrl = videoFiles.get(simpleKey);
+} else {
+  mvToggleBtn.style.display = 'none';
+}
+}
+
+// Controls
+playPauseBtn.addEventListener('click', ()=>{
+  if (isVideoMode) {
+    if (mainVideoPlayer.paused) mainVideoPlayer.play();
+    else mainVideoPlayer.pause();
+  } else {
+    if(audioPlayer.paused && audioPlayer.src) audioPlayer.play();
+    else audioPlayer.pause();
+  }
+});
+
+// Audio Events
+audioPlayer.addEventListener('play', ()=>{
+playIcon.style.display = 'none';
+pauseIcon.style.display = 'inline';
+albumArt.classList.add('playing');
+if (window.innerWidth <= 768) {
+  if (mobileInlineLyricsContainer) mobileInlineLyricsContainer.style.display = 'block';
+  if (mobileInlineQueueContainer) mobileInlineQueueContainer.style.display = 'none';
+}
+});
+audioPlayer.addEventListener('pause', ()=>{
+playIcon.style.display = 'inline';
+pauseIcon.style.display = 'none';
+albumArt.classList.remove('playing');
+if (window.innerWidth <= 768) {
+  if (mobileInlineLyricsContainer) mobileInlineLyricsContainer.style.display = 'none';
+  if (mobileInlineQueueContainer) mobileInlineQueueContainer.style.display = 'block';
+}
+});
+
+// Video Events
+mainVideoPlayer.addEventListener('play', () => {
+  playIcon.style.display = 'none';
+  pauseIcon.style.display = 'inline';
+});
+mainVideoPlayer.addEventListener('pause', () => {
+  playIcon.style.display = 'inline';
+  pauseIcon.style.display = 'none';
+});
+mainVideoPlayer.addEventListener('timeupdate', () => {
+  if (mainVideoPlayer.duration > 0) {
+    const percentage = (mainVideoPlayer.currentTime / mainVideoPlayer.duration) * 100;
+    progressBar.style.width = `${percentage}%`;
+    currentTimeEl.textContent = formatTime(mainVideoPlayer.currentTime);
+    totalDurationEl.textContent = formatTime(mainVideoPlayer.duration);
+  }
+});
+mainVideoPlayer.addEventListener('ended', () => {
+  handleTrackChange(1);
+});
+
+
+function handleTrackChange(offset) {
+if (offset === 1 && playNextQueue.length > 0) {
+  const nextTrackName = playNextQueue.shift();
+  const nextIndexInQueue = activeQueue.findIndex(t => t.name === nextTrackName);
+if (nextIndexInQueue !== -1) {
+    playTrack(nextIndexInQueue);
+    return;
+  } else {
+    console.warn(`'Play Next' track "${nextTrackName}" not found in current queue. Skipping.`);
+  }
+}
+
+if (currentPlayMode === 'repeat-one') {
+  if (isVideoMode) {
+    mainVideoPlayer.currentTime = 0;
+    mainVideoPlayer.play();
+  } else {
+    audioPlayer.currentTime = 0;
+    audioPlayer.play();
+  }
+return;
+}
+let nextIndex = currentTrackIndex + offset;
+if (currentPlayMode === 'shuffle') {
+let newIndex;
+do {
+newIndex = Math.floor(Math.random() * activeQueue.length);
+} while (newIndex === currentTrackIndex && activeQueue.length > 1);
+playTrack(newIndex);
+return;
+}
+
+if (nextIndex >= activeQueue.length) {
+nextIndex = (currentPlayMode === 'repeat-all') ? 0 : -1;
+} else if (nextIndex < 0) {
+nextIndex = (currentPlayMode === 'repeat-all') ? activeQueue.length - 1 : -1;
+}
+
+if(nextIndex !== -1){
+playTrack(nextIndex);
+} else {
+audioPlayer.pause();
+currentTrackIndex = -1;
+updateQueueUI();
+}
+}
+
+prevBtn.addEventListener('click', ()=>handleTrackChange(-1));
+nextBtn.addEventListener('click', ()=>handleTrackChange(1));
+modeBtn.addEventListener('click', ()=>{
+let nextIndex = PLAY_MODES.indexOf(currentPlayMode) + 1;
+if(nextIndex >= PLAY_MODES.length) nextIndex = 0;
+currentPlayMode = PLAY_MODES[nextIndex];
+modeBtn.innerHTML = getModeIcon(currentPlayMode);
+modeBtn.classList.toggle('active', currentPlayMode !== 'sequential');
+modeBtn.title = currentPlayMode === 'sequential' ?  '通常再生'  :
+currentPlayMode === 'shuffle' ?  'シャッフル再生'  :
+currentPlayMode === 'repeat-all' ?  '全曲リピート'  :  '一曲リピート' ;
+});
+favBtn.addEventListener('click', () => {
+if(currentTrackIndex !== -1){
+const track = activeQueue[currentTrackIndex];
+track.isFavorite = !track.isFavorite;
+favBtn.innerHTML = getFavIcon(track.isFavorite);
+favBtn.classList.toggle('active', track.isFavorite);
+const libTrack = allTracks.find(t => t.name === track.name);
+if(libTrack) libTrack.isFavorite = track.isFavorite;
+if(activePlaylistId === 'favorites') filterAndDisplayQueue();
+updateQueueUI();
+}
+});
+
+// =============================
+// Progress and Time Handling
+// =============================
+function updateProgress() {
+  if (!isVideoMode) {
+    if (audioPlayer.duration > 0) {
+    const percentage = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+    progressBar.style.width = `${percentage}%`;
+    currentTimeEl.textContent = formatTime(audioPlayer.currentTime);
+    totalDurationEl.textContent = formatTime(audioPlayer.duration);
+    } else {
+    progressBar.style.width = '0%';
+    currentTimeEl.textContent = '0:00';
+    totalDurationEl.textContent = '0:00';
+    }
+    checkLyricsTime(audioPlayer.currentTime);
+  }
+}
+
+audioPlayer.addEventListener('timeupdate', updateProgress);
+audioPlayer.addEventListener('loadedmetadata', updateProgress);
+audioPlayer.addEventListener('ended', () => {
+  handleTrackChange(1);
+  if (window.innerWidth <= 768) {
+    if (mobileInlineLyricsContainer) mobileInlineLyricsContainer.style.display = 'none';
+    if (mobileInlineQueueContainer) mobileInlineQueueContainer.style.display = 'block';
+  }
+});
+progressContainer.addEventListener('click', (e) => {
+  const targetPlayer = isVideoMode ? mainVideoPlayer : audioPlayer;
+  if (targetPlayer.duration > 0) {
+    const rect = progressContainer.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const newTime = (clickX / rect.width) * targetPlayer.duration;
+    targetPlayer.currentTime = newTime;
+  }
+});
+
+// =============================
+// Lyrics & UI
+// =============================
+function checkLyricsTime(currentTime) {
+const track = activeQueue[currentTrackIndex];
+if (!track || !track.parsedLyrics) return;
+if (lyricsDisplay.style.display !== 'block' && lyricsDisplayMobile.style.display !== 'block') return;
+
+const lines = track.parsedLyrics;
+let nextIndex = -1;
+for (let i = lines.length - 1; i >= 0; i--) {
+if (currentTime >= lines[i].time - 0.2) {
+nextIndex = i;
+break;
+}
+}
+
+if (nextIndex !== -1 && nextIndex !== currentLrcLineIndex) {
+const prevLineEl = lyricsDisplay.querySelector(`[data-index="${currentLrcLineIndex}"]`);
+if (prevLineEl) prevLineEl.classList.remove('active');
+const nextLineEl = lyricsDisplay.querySelector(`[data-index="${nextIndex}"]`);
+if (nextLineEl) {
+  nextLineEl.classList.add('active');
+  if (!isManuallyScrolling) {
+    ignoreProgrammaticScroll = true;
+    nextLineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+const prevLineElMobile = lyricsDisplayMobile.querySelector(`[data-index="${currentLrcLineIndex}"]`);
+if (prevLineElMobile) prevLineElMobile.classList.remove('active');
+const nextLineElMobile = lyricsDisplayMobile.querySelector(`[data-index="${nextIndex}"]`);
+if (nextLineElMobile) {
+  nextLineElMobile.classList.add('active');
+  if (!isManuallyScrolling) {
+    ignoreProgrammaticScroll = true;
+    nextLineElMobile.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+currentLrcLineIndex = nextIndex;
+}
+}
+
+function handleManualScroll() {
+  if (ignoreProgrammaticScroll) {
+    ignoreProgrammaticScroll = false; 
+    return;
+  }
+  
+  isManuallyScrolling = true;
+  clearTimeout(manualScrollTimer); 
+
+  manualScrollTimer = setTimeout(() => {
+    isManuallyScrolling = false;
+    const targetTime = isVideoMode ? mainVideoPlayer.currentTime : audioPlayer.currentTime;
+    if (targetTime > 0) {
+      checkLyricsTime(targetTime);
+    }
+  }, 2000); 
+}
+
+lyricsDisplay.addEventListener('scroll', handleManualScroll);
+lyricsDisplayMobile.addEventListener('scroll', handleManualScroll);
+
+
+function setLyricsUIFromTrack(track) {
+// アーティスト情報表示中は処理しない（再生開始時にリセットされるため）
+const artistInfo = document.getElementById('artistInfoDisplay');
+if (artistInfo.style.display !== 'none') return;
+
+if (!track) {
+lyricsEditor.value = '';
+lyricsEditor.style.display = 'block';
+lyricsDisplay.style.display = 'none';
+lyricsEditorMobile.value = '';
+lyricsEditorMobile.style.display = 'block';
+lyricsDisplayMobile.style.display = 'none';
+flipInner.classList.remove('synced-lyrics');
+return;
+}
+
+lyricsEditor.value = track.lyrics || '';
+lyricsEditorMobile.value = track.lyrics || '';
+
+if (track.parsedLyrics && track.parsedLyrics.length > 0) {
+lyricsEditor.style.display = 'none';
+lyricsDisplay.style.display = 'block';
+lyricsEditorMobile.style.display = 'none';
+lyricsDisplayMobile.style.display = 'block';
+lyricsActions.style.display = 'none';
+flipInner.classList.add('synced-lyrics');
+
+lyricsDisplay.innerHTML = '';
+lyricsDisplayMobile.innerHTML = '';
+currentLrcLineIndex = -1;  
+track.parsedLyrics.forEach((line, index) => {
+  const p = document.createElement('p');
+  p.className = 'lyrics-line';
+  p.textContent = line.text;
+  p.dataset.time = line.time;
+  p.dataset.index = index;
+  lyricsDisplay.appendChild(p);
+  const pMobile = p.cloneNode(true);
+  lyricsDisplayMobile.appendChild(pMobile);
+});
+checkLyricsTime(audioPlayer.currentTime);
+
+} else {
+lyricsDisplay.style.display = 'none';
+lyricsEditor.style.display = 'block';
+lyricsDisplayMobile.style.display = 'none';
+lyricsEditorMobile.style.display = 'block';
+lyricsActions.style.display = 'flex';
+flipInner.classList.remove('synced-lyrics');
+}
+}
+
+lyricsDisplay.addEventListener('click', (event) => {
+const lineEl = event.target.closest('.lyrics-line');
+if (lineEl) {
+const time = parseFloat(lineEl.dataset.time);
+if (!isNaN(time)) {
+  if(isVideoMode) mainVideoPlayer.currentTime = time;
+  else audioPlayer.currentTime = time;
+}
+}
+});
+lyricsDisplayMobile.addEventListener('click', (event) => {
+const lineEl = event.target.closest('.lyrics-line');
+if (lineEl) {
+const time = parseFloat(lineEl.dataset.time);
+if (!isNaN(time)) {
+  if(isVideoMode) mainVideoPlayer.currentTime = time;
+  else audioPlayer.currentTime = time;
+}
+}
+});
+
+let touchStartX = 0;
+let touchStartY = 0;
+let isSwiping = false;
+albumArtContainer.addEventListener('touchstart', (e) => {
+  if (isVideoMode) return; 
+  if (!flipInner.classList.contains('flipped')) return;
+  
+  if (e.target.closest('.lyrics-scroll') || e.target.closest('#lyricsEditor') || e.target.closest('.lyrics-line')) {
+    isSwiping = false;
+    return;
+  }
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  isSwiping = true;
+}, { passive: true });
+
+albumArtContainer.addEventListener('touchmove', (e) => {
+  if (!isSwiping) return;
+  const diffX = e.touches[0].clientX - touchStartX;
+  const diffY = e.touches[0].clientY - touchStartY;
+  if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 10) {
+    isSwiping = false; 
+    return;
+  }
+  if (Math.abs(diffX) > 50) { 
+    toggleFlip(false); 
+    isSwiping = false; 
+  }
+}, { passive: true });
+albumArtContainer.addEventListener('touchend', () => {
+  isSwiping = false;
+});
+
+albumArtContainer.addEventListener('click', (e) => {
+if (isVideoMode) return; 
+if (window.innerWidth <= 768) {
+  return;
+}
+  const target = e.target;
+  if (flipInner.classList.contains('flipped')) {
+    if (target.closest('.lyrics-btn') || 
+        target.closest('#lyricsEditor') || 
+        target.closest('.lyrics-line')
+       ) {
+      return; 
+    }
+    toggleFlip();
+} else {
+    toggleFlip();
+  }
+});
+function toggleFlip(force) {
+if (typeof force === 'boolean') {
+flipInner.classList.toggle('flipped', force);
+} else {
+flipInner.classList.toggle('flipped');
+}
+}
+
+lyricsSaveBtn.addEventListener('click', () => {
+if(currentTrackIndex !== -1) {
+const track = activeQueue[currentTrackIndex];
+track.lyrics = lyricsEditor.value;
+lyricsEditorMobile.value = track.lyrics; 
+track.parsedLyrics = parseLRC(track.lyrics);
+setLyricsUIFromTrack(track);
+alert( '歌詞を保存しました。' );
+}
+});
+lyricsClearBtn.addEventListener('click', () => {
+lyricsEditor.value = '';
+lyricsEditorMobile.value = '';
+});
+
+// =============================
+// Artist Modal & Info
+// =============================
+async function fetchWikipediaSnippet(artistName) {
+const params = new URLSearchParams({
+action: 'query',
+format: 'json',
+prop: 'extracts|info',
+inprop: 'url',
+exintro: true,
+explaintext: true,
+redirects: 1,
+titles: artistName,
+origin: '*'
+});
+const url = `${WIKIPEDIA_API_BASE}?${params.toString()}`;
+
+try {
+const response = await fetch(url);
+if (!response.ok) throw new Error('Wikipedia API request failed');
+const data = await response.json();
+const pages = data.query.pages;
+const pageId = Object.keys(pages)[0];
+
+if (pageId === '-1') return null;
+const page = pages[pageId];
+if (page.extract) {
+return {
+snippet: page.extract,
+url: page.fullurl
+};
+}
+return null;
+} catch (error) {
+console.error("Error fetching from Wikipedia:", error);
+return null;
+}
+}
+
+async function displayArtistModal(artistName) {
+modalArtistName.textContent = artistName;
+modalContentBody.innerHTML =  '<p class="loading-message">情報を読み込み中... (Wikipedia)</p>' ;
+artistModal.style.display = 'flex';
+
+const imgUrl = artistImages.get(artistName.toLowerCase());
+let imgHtml = '';
+if (imgUrl) {
+  imgHtml = `<img src="${imgUrl}" alt="${artistName}" class="artist-image">`;
+}
+
+const wikiInfo = await fetchWikipediaSnippet(artistName);
+if (artistModal.style.display === 'none') return;
+if (wikiInfo && wikiInfo.snippet) {
+  modalContentBody.innerHTML = `
+    ${imgHtml}
+    <p style="white-space: pre-wrap; border-left: 2px solid var(--highlight-color); padding-left: 10px;">${wikiInfo.snippet}</p>
+    <p><a href="${wikiInfo.url} " target="_blank">Wikipediaで続きを読む</a></p>
+  `;
+} else {
+  modalContentBody.innerHTML = `
+    ${imgHtml}
+    <p>アーティスト <strong> ${artistName} </strong> の詳細情報は見つかりませんでした。</p>
+    <p>Wikipediaで直接検索: <a href="https://ja.wikipedia.org/wiki/Special:Search?search= ${encodeURIComponent(artistName)}" target="_blank">${artistName}</a></p>
+  `;
+}
+}
+
+// ▼▼▼ 追加: アーティスト選択時の処理 ▼▼▼
+async function activateArtistMode(artistName) {
+  // 1. プレイリストをそのアーティストのみにする
+  activeQueue = allTracks.filter(t => t.artist === artistName);
+  // 表示用キューも合わせる（検索結果表示から遷移した場合など）
+  currentQueue = [...activeQueue];
+  updateQueueUI(); // プレイリスト表示更新
+  updateQueueTitles(artistName); // タイトル更新
+
+  // 2. 再生は止める（または準備状態）
+  audioPlayer.pause();
+  currentTrackIndex = -1; // 未選択状態
+  currentTrackTitle.textContent = artistName;
+  currentTrackArtist.textContent = 'アーティスト概要';
+  
+  // 3. アルバムアートをアーティスト写真に
+  const imgUrl = artistImages.get(artistName.toLowerCase()) || DEFAULT_ART;
+  albumArt.src = imgUrl;
+  updateBodyBackground(imgUrl);
+
+  // 4. 裏面をアーティスト情報（Wikipedia）に切り替え
+  const lyricsDisplay = document.getElementById('lyricsDisplay');
+  const lyricsEditor = document.getElementById('lyricsEditor');
+  const artistInfo = document.getElementById('artistInfoDisplay');
+  const artistInfoMobile = document.getElementById('artistInfoDisplayMobile');
+  const lyricsHeader = document.getElementById('lyricsHeaderTitle');
+  const lyricsActions = document.getElementById('lyricsActions');
+
+  lyricsDisplay.style.display = 'none';
+  lyricsEditor.style.display = 'none';
+  lyricsActions.style.display = 'none'; // 保存ボタン等を隠す
+  
+  lyricsHeader.textContent = 'アーティスト情報';
+  artistInfo.style.display = 'block';
+  artistInfoMobile.style.display = 'block';
+  artistInfo.innerHTML = '<p>読み込み中...</p>';
+  artistInfoMobile.innerHTML = '<p>読み込み中...</p>';
+
+  const wiki = await fetchWikipediaSnippet(artistName);
+  const content = wiki ? 
+    `<p>${wiki.snippet}</p><p><a href="${wiki.url}" target="_blank" style="color:var(--highlight-color);">続きを読む</a></p>` : 
+    `<p>情報が見つかりませんでした。</p>`;
+  
+  artistInfo.innerHTML = content;
+  artistInfoMobile.innerHTML = content;
+  
+  // フリップして裏面を見せる（オプション）
+  if (!flipInner.classList.contains('flipped')) {
+    toggleFlip(true);
+  }
+}
+// ▲▲▲ 追加 ▲▲▲
+
+currentTrackArtist.addEventListener('click', () => {
+const artistName = currentTrackArtist.textContent.trim();
+if (artistName && artistName !== 'Unknown Artist' && artistName !==  '選択されていません' && artistName !== 'アーティスト概要' && currentTrackIndex !== -1) {
+displayArtistModal(artistName);
+}
+});
+closeModalBtn.addEventListener('click', () => {
+artistModal.style.display = 'none';
+});
+
+artistModal.addEventListener('click', (event) => {
+if (event.target === artistModal) {
+artistModal.style.display = 'none';
+}
+});
+
+// =============================
+// Context Menu
+// =============================
+function closeAllContextMenus() {
+  document.querySelectorAll('.context-menu').forEach(menu => {
+    menu.style.display = 'none';
+  });
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.options-menu-btn') && !e.target.closest('.context-menu')) {
+    closeAllContextMenus();
+  }
+});
+
+[queueListElement, mobileInlineQueueList].forEach(listElement => {
+  if (!listElement) return;
+  listElement.addEventListener('click', (e) => {
+    const item = e.target.closest('.context-menu-item, .submenu-item');
+    if (!item) return;
+
+    e.stopPropagation(); 
+    const action = item.dataset.action;
+    
+    if (action === 'play-next') {
+      const trackName = item.dataset.trackName;
+      handlePlayNext(trackName);
+    }
+    
+    if (action === 'add-to-playlist') {
+      const trackName = item.dataset.trackName;
+      const playlistId = item.dataset.playlistId;
+      handleAddToPlaylist(trackName, playlistId);
+    }
+
+    if (action === 'go-to-album') {
+      const trackName = item.dataset.trackName;
+      handleGoToAlbum(trackName);
+    }
+
+    if (action === 'go-to-artist') {
+    const trackName = item.dataset.trackName;
+      handleGoToArtist(trackName);
+    }
+
+    if (action === 'delete-track') {
+      const trackName = item.dataset.trackName;
+      handleDeleteTrack(trackName);
+    }
+    
+    closeAllContextMenus();
+  });
+});
+function handlePlayNext(trackName) {
+  if (!trackName) return;
+  playNextQueue = playNextQueue.filter(name => name !== trackName);
+  playNextQueue.unshift(trackName);
+  const track = allTracks.find(t => t.name === trackName);
+  if (track) {
+    alert(`「${track.title}」を次に再生します。`);
+}
+}
+
+function handleAddToPlaylist(trackName, playlistId) {
+  if (!trackName || !playlistId) return;
+const playlist = playlists.find(p => p.id === playlistId);
+const track = allTracks.find(t => t.name === trackName);
+if (playlist && track) {
+    if (!playlist.trackNames.includes(trackName)) {
+      playlist.trackNames.push(trackName);
+alert(`「${track.title}」をプレイリスト「${playlist.name}」に追加しました。`);
+      if (activePlaylistId === playlistId) {
+        filterAndDisplayQueue();
+}
+    } else {
+      alert(`「${track.title}」は既にプレイリスト「${playlist.name}」に存在します。`);
+}
+  }
+}
+
+function handleGoToAlbum(trackName) {
+  if (!trackName) return;
+  const track = allTracks.find(t => t.name === trackName);
+if (track && track.album && track.album !== 'Unknown Album') {
+    const albumId = `album-${track.album}`;
+    activePlaylistId = albumId;
+    filterAndDisplayQueue();
+    document.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('active'));
+    const albumItem = playlistListElement.querySelector(`[data-playlist-id="${albumId}"]`);
+if (albumItem) {
+      albumItem.classList.add('active');
+      updateQueueTitles(albumItem.textContent); 
+} else {
+      const allItem = document.querySelector('[data-playlist-id="all"]');
+if(allItem) allItem.classList.add('active');
+    }
+  }
+}
+
+function handleGoToArtist(trackName) {
+  if (!trackName) return;
+  const track = allTracks.find(t => t.name === trackName);
+if (track && track.artist && track.artist !== 'Unknown Artist') {
+    const artistId = `artist-${track.artist}`;
+    activePlaylistId = artistId;
+    filterAndDisplayQueue();
+    document.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('active'));
+    const artistItem = playlistListElement.querySelector(`[data-playlist-id="${artistId}"]`);
+if (artistItem) {
+      artistItem.classList.add('active');
+      updateQueueTitles(artistItem.textContent); 
+} else {
+      const allItem = document.querySelector('[data-playlist-id="all"]');
+if(allItem) allItem.classList.add('active');
+    }
+  }
+}
+
+function handleDeleteTrack(trackName) {
+  if (!trackName) return;
+const track = allTracks.find(t => t.name === trackName);
+  if (!track) return;
+  const indexInQueue = activeQueue.findIndex(t => t.name === trackName);
+  allTracks = allTracks.filter(t => t.name !== trackName);
+  playlists.forEach(p => {
+    p.trackNames = p.trackNames.filter(name => name !== trackName);
+  });
+  generateDynamicPlaylists();
+  filterAndDisplayQueue(); 
+
+  if (currentTrackIndex === indexInQueue) {
+    playTrack(-1);
+  } else {
+    if (indexInQueue !== -1 && indexInQueue < currentTrackIndex) {
+      currentTrackIndex--;
+}
+    updateQueueUI();
+  }
+  alert(`「${track.title}」をライブラリから削除しました。`);
+}
+
+function createQueueItem(item, index) {
+  const itemContainer = document.createElement('li');
+  itemContainer.className = 'queue-item-container';
+
+  const li = document.createElement('div');
+  // アーティストアイテムか曲アイテムかでクラス分け
+  const isArtistItem = item.type === 'artist';
+  li.className = `library-item ${isArtistItem ? 'artist-result' : ''} ${!isArtistItem && index === currentTrackIndex ? 'playing' : ''}`;
+  li.dataset.index = index;
+
+  const art = document.createElement('img');
+  art.className = 'item-art';
+  // アーティストならその画像、曲ならアートワーク
+  art.src = isArtistItem ? (item.image || DEFAULT_ART) : (item.art || DEFAULT_ART);
+  art.alt = 'Art';
+
+  const info = document.createElement('div');
+  info.className = 'item-info';
+  if (isArtistItem) {
+    info.innerHTML = `<div class="title" style="font-size:1.1em;">${item.name}</div><div class="artist">アーティスト</div>`;
+  } else {
+    info.innerHTML = `
+    <div class="title">${item.title || 'Untitled Track'}</div>
+    <div class="artist">${item.artist || 'Unknown Artist'}</div>
+    <div class="album">${item.album || 'Unknown Album'}</div>
+    `;
+  }
+
+  li.appendChild(art);
+  li.appendChild(info);
+
+  if (!isArtistItem) {
+    const favBtnClone = document.createElement('button');
+    favBtnClone.className = `action-btn favorite-btn ${item.isFavorite ? 'active' : ''}`;
+    favBtnClone.innerHTML = getFavIcon(item.isFavorite);
+    favBtnClone.title =  'お気に入りに追加/削除' ;
+
+    const optionsBtn = document.createElement('button');
+    optionsBtn.className = 'action-btn options-menu-btn';
+    optionsBtn.innerHTML = '&#8942;'; 
+    optionsBtn.title = 'オプション';
+    optionsBtn.dataset.index = index;
+
+    favBtnClone.addEventListener('click', (e) => {
+      e.stopPropagation();  
+      item.isFavorite = !item.isFavorite;
+      const libTrack = allTracks.find(t => t.name === item.name);
+      if(libTrack) libTrack.isFavorite = item.isFavorite;
+
+      favBtnClone.innerHTML = getFavIcon(item.isFavorite);
+      favBtnClone.classList.toggle('active', item.isFavorite);
+      updateFavButton();  
+
+      if(activePlaylistId === 'favorites') {
+      filterAndDisplayQueue();
+      } else {
+      updateQueueUI();
+      }
+    });
+
+    optionsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeAllContextMenus();
+      const contextMenu = itemContainer.querySelector('.context-menu');
+      if (contextMenu) {
+        contextMenu.style.display = 'block';
+      }
+    });
+
+    li.appendChild(favBtnClone);
+    li.appendChild(optionsBtn);
+
+    // 曲用コンテキストメニュー
+    const contextMenu = document.createElement('div');
+    contextMenu.className = 'context-menu';
+    contextMenu.style.display = 'none'; 
+
+    let menuHTML = `<div class="context-menu-item" data-action="play-next" data-track-name="${item.name}">次に再生</div>`;
+    if (item.album && item.album !== 'Unknown Album') {
+      menuHTML += `<div class="context-menu-item" data-action="go-to-album" data-track-name="${item.name}">「${item.album}」に移動</div>`;
+    }
+    if (item.artist && item.artist !== 'Unknown Artist') {
+      menuHTML += `<div class="context-menu-item" data-action="go-to-artist" data-track-name="${item.name}">「${item.artist}」に移動</div>`;
+    }
+
+    if (playlists.length > 0) {
+    playlists.forEach(p => {
+        menuHTML += `<div class="context-menu-item" 
+                          data-action="add-to-playlist" 
+                          data-track-name="${item.name}" 
+                          data-playlist-id="${p.id}">
+              「${p.name}」に追加
+    </div>`;
+      });
+    }
+
+    menuHTML += `<div class="context-menu-item" data-action="delete-track" data-track-name="${item.name}">削除</div>`;
+    contextMenu.innerHTML = menuHTML;
+    itemContainer.appendChild(contextMenu);
+  }
+
+  li.addEventListener('click', (e) => {
+    if (e.target.closest('.favorite-btn') || e.target.closest('.options-menu-btn')) return;
+    
+    if (isArtistItem) {
+      // アーティスト選択時の処理
+      activateArtistMode(item.name);
+    } else {
+      // 通常の曲再生
+      // activeQueue内のインデックスを探す（currentQueueとactiveQueueがずれている可能性があるため）
+      const realIndex = activeQueue.findIndex(t => t.name === item.name);
+      if (realIndex !== -1) {
+        playTrack(realIndex);
+      } else {
+        // 検索結果などから直接再生する場合、activeQueueを再構築する
+        // 単体再生またはそのリスト全体をキューにする
+        activeQueue = currentQueue.filter(i => i.type !== 'artist'); // アーティスト項目を除外
+        const newIndex = activeQueue.findIndex(t => t.name === item.name);
+        playTrack(newIndex);
+      }
+    }
+  });
+
+  itemContainer.appendChild(li);
+  return itemContainer;
+}
+
+function updateQueueUI(isSearchMode = false){
+queueListElement.innerHTML = '';
+mobileInlineQueueList.innerHTML = ''; 
+// 表示用キュー（currentQueue）に基づいてリスト生成
+currentQueue.forEach((item, index) => {
+  // activeQueue（再生用）のインデックスとは別物なので注意
+  queueListElement.appendChild(createQueueItem(item, index));
+  mobileInlineQueueList.appendChild(createQueueItem(item, index));
+});
+}
+
+function updateFavButton(){
+if(currentTrackIndex !== -1){
+const track = activeQueue[currentTrackIndex];
+favBtn.innerHTML = getFavIcon(track.isFavorite);
+favBtn.classList.toggle('active', track.isFavorite);
+favBtn.disabled = false;
+} else {
+favBtn.innerHTML = getFavIcon(false);
+favBtn.classList.remove('active');
+favBtn.disabled = true;
+}
+}
+
+function updateBodyBackground(artUrl) {
+const body = document.body;
+body.style.backgroundImage = artUrl ? `url('${artUrl}')` : 'none';
+}
+
+function updateMediaSession() {
+if ('mediaSession' in navigator && currentTrackIndex !== -1) {
+const track = activeQueue[currentTrackIndex];
+const artUrl = track.art || DEFAULT_ART;
+
+const artwork = [{
+src: artUrl,
+sizes: '256x256',
+type: artUrl.startsWith('data:image/jpeg') ?
+'image/jpeg' : 'image/png'
+}];
+navigator.mediaSession.metadata = new MediaMetadata({
+title: track.title,
+artist: track.artist,
+album: track.album,
+artwork: artwork
+});
+
+navigator.mediaSession.setActionHandler('play', () => {
+  if(isVideoMode) mainVideoPlayer.play();
+  else audioPlayer.play();
+});
+navigator.mediaSession.setActionHandler('pause', () => {
+  if(isVideoMode) mainVideoPlayer.pause();
+  else audioPlayer.pause();
+});
+navigator.mediaSession.setActionHandler('previoustrack', () => handleTrackChange(-1));
+navigator.mediaSession.setActionHandler('nexttrack', () => handleTrackChange(1));
+navigator.mediaSession.setActionHandler('seekto', (event) => {
+if (event.seekTime !== undefined) {
+  if(isVideoMode) mainVideoPlayer.currentTime = event.seekTime;
+  else audioPlayer.currentTime = event.seekTime;
+}
+});
+}
+}
+
+if (toggleQueueBtn && toggleMainBtn && mainPanel && queuePanel) {
+  toggleQueueBtn.addEventListener('click', () => {
+    mainPanel.classList.add('mobile-hidden');
+    queuePanel.classList.add('mobile-visible');
+    queuePanel.scrollTop = 0;
+  });
+
+  toggleMainBtn.addEventListener('click', () => {
+    mainPanel.classList.remove('mobile-hidden');
+    queuePanel.classList.remove('mobile-visible');
+  });
+}
+
+// =============================
+// Music Video Logic
+// =============================
+mvToggleBtn.addEventListener('click', () => {
+  const videoUrl = mvToggleBtn.dataset.videoUrl;
+  if (videoUrl) {
+    audioPlayer.pause();
+    const currentTime = audioPlayer.currentTime;
+    
+    mainVideoPlayer.src = videoUrl;
+    mainVideoPlayer.currentTime = currentTime;
+    
+    albumArtContainer.classList.add('video-mode');
+    
+    mainVideoPlayer.onloadedmetadata = () => {
+        const ratio = mainVideoPlayer.videoWidth / mainVideoPlayer.videoHeight;
+        albumArtContainer.style.aspectRatio = `${ratio}`;
+    };
+    
+    videoOverlay.style.display = 'flex';
+    requestAnimationFrame(() => {
+      videoOverlay.classList.add('visible');
+    });
+    
+    mvToggleBtn.style.display = 'none';
+    mainVideoPlayer.play();
+    isVideoMode = true;
+  }
+});
+
+closeVideoBtn.addEventListener('click', closeVideoMode);
+
+function closeVideoMode() {
+  if (!isVideoMode) return;
+  
+  mainVideoPlayer.pause();
+  const currentTime = mainVideoPlayer.currentTime;
+  
+  audioPlayer.currentTime = currentTime;
+  
+  videoOverlay.classList.remove('visible');
+  setTimeout(() => {
+    videoOverlay.style.display = 'none';
+  }, 400); 
+  
+  albumArtContainer.classList.remove('video-mode');
+  albumArtContainer.style.aspectRatio = ''; 
+  
+  if (mvToggleBtn.dataset.videoUrl) {
+    mvToggleBtn.style.display = 'flex'; 
+  }
+  
+  audioPlayer.play();
+  isVideoMode = false;
+}
+
+// =============================
+// App init
+// =============================
+async function main(){
+  modeBtn.innerHTML = getModeIcon(currentPlayMode);
+  favBtn.innerHTML = getFavIcon(false);
+  updateQueueTitles('全曲'); 
+  filterAndDisplayQueue();
+  playTrack(-1);
+}
+
+main();
+</script>
+</body>
+</html>
